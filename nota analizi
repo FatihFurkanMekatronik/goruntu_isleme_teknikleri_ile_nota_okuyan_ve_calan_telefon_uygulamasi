@@ -1,0 +1,171 @@
+package com.example.ipdeneme;
+
+import android.annotation.SuppressLint;
+import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.net.Uri;
+import android.os.Bundle;
+import android.provider.MediaStore;
+import android.view.View;
+import android.widget.Button;
+import android.widget.ImageView;
+
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AppCompatActivity;
+
+import org.opencv.android.OpenCVLoader;
+import org.opencv.android.Utils;
+import org.opencv.core.Core;
+import org.opencv.core.CvType;
+import org.opencv.core.Mat;
+import org.opencv.core.Point;
+import org.opencv.core.Scalar;
+import org.opencv.core.Size;
+import org.opencv.imgproc.Imgproc;
+
+import java.io.IOException;
+
+public class MainActivity extends AppCompatActivity {
+
+    private ImageView image;
+    private Button pickButton;
+    Mat p1;
+    Mat p2;
+    private static final int PICimage=1;
+    Bitmap res1,bitmap3;
+    //int bp1,bp2;
+    int sayac,k=1;
+    Uri imageUri;
+    Mat originalImag,rgbImg,res;
+
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if(requestCode == PICimage && resultCode == RESULT_OK) {
+            imageUri = data.getData();
+            Bitmap bitmap = null;
+            try {
+                bitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            //Bitmap bitmap = BitmapFactory.decodeResource(getResources(), R.drawable.symphony);
+            Bitmap bitmap2 = BitmapFactory.decodeResource(getResources(), R.drawable.nota6);
+            Mat notaMat = new Mat();
+            Mat tekMat = new Mat();
+            Mat threshold = new Mat();
+            Utils.bitmapToMat(bitmap2,tekMat);
+            Utils.bitmapToMat(bitmap,notaMat);
+            Mat notaMatGray = new Mat();
+            Mat tekMatGray = new Mat();
+            Imgproc.cvtColor(notaMat, notaMatGray, Imgproc.COLOR_RGB2GRAY);
+            Imgproc.cvtColor(tekMat, tekMatGray, Imgproc.COLOR_RGB2GRAY);
+            Imgproc.threshold(notaMatGray,threshold,170,255,Imgproc.THRESH_BINARY);
+
+            int noktaDizisi[] = new int[1000];
+            int satırDizisi[] = new int[60], satırSayac = 0;
+            double[] toplam= {0};
+            for(int i=0;i<threshold.rows();i++)
+            {
+                toplam[0]=0;
+                for(int j=0;j<threshold.cols();j++)
+                {
+                    double[] satırToplam = threshold.get(i,j);
+                    toplam[0] += satırToplam[0];
+                }
+                double a = toplam[0]/threshold.cols();
+                if(a < 130)
+                {
+                    noktaDizisi[k]= i;
+                    if(noktaDizisi[k]-noktaDizisi[k-1] >2)
+                    {
+                        satırDizisi[satırSayac] = i;
+                        satırSayac++;
+                    }
+                    k++;
+                }
+            }
+            int size_row = satırDizisi[2]-satırDizisi[1]+2;
+            int size_col = 542/size_row ;
+            Size sz = new Size(size_row,471/size_col);
+            Imgproc.resize( tekMatGray, tekMatGray, sz );
+
+            for(int b=0 ; b<satırSayac ; b++)
+            {
+
+                Point start = new Point(0, satırDizisi[b]);
+                Point end = new Point( threshold.cols(),satırDizisi[b]);
+                Imgproc.line(threshold, start, end, new Scalar(0, 0, 0), 1);
+            }
+
+            sayac = 0;
+
+            Point[] line = new Point[10];
+
+
+            Core.MinMaxLocResult mmr ;
+
+            int result_cols = notaMatGray.cols() - tekMatGray.cols() + 1;
+            int result_rows = satırDizisi[3];//notaMatGray.rows() - tekMatGray.rows() + 1
+            Mat result = new Mat(result_rows, result_cols, CvType.CV_32FC1);
+
+            Imgproc.matchTemplate(threshold, tekMatGray, result, Imgproc.TM_CCOEFF);
+            Imgproc.cvtColor(threshold,notaMatGray,Imgproc.COLOR_GRAY2BGR);
+            Core.normalize(result, result, 0, 1, Core.NORM_MINMAX, -1, new Mat());
+            Point matchLoc;
+
+
+            boolean iterate = true;
+            while(true)
+            {
+                mmr = Core.minMaxLoc(result);
+                matchLoc = mmr.maxLoc;
+                if(mmr.maxVal >=0.85)
+                {
+                    Imgproc.rectangle(notaMatGray, matchLoc,
+                            new Point(matchLoc.x + tekMatGray.cols(),matchLoc.y + tekMatGray.rows()),
+                            new    Scalar(255,0,0),1);
+                    Imgproc.rectangle(result, matchLoc,
+                            new Point(matchLoc.x + tekMatGray.cols(),matchLoc.y + tekMatGray.rows()),
+                            new    Scalar(0,0,255),-1);
+                    //matchLoc.x = matchLoc.x+5;
+                    //break;
+                }
+                else
+                {
+                    break; //No more results within tolerance, break search
+                }
+            }
+
+            Utils.matToBitmap(notaMatGray,bitmap) ;
+            image.setImageBitmap(bitmap);
+        }
+    }
+
+
+    @SuppressLint("ResourceType")
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        OpenCVLoader.initDebug();
+
+        image = findViewById(R.id.imageView);
+        pickButton = findViewById(R.id.button);
+
+        pickButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent gallery = new Intent();
+                gallery.setType("image/*");
+                gallery.setAction(Intent.ACTION_GET_CONTENT);
+
+                startActivityForResult(Intent.createChooser(gallery,"select picture"),PICimage);
+            }
+        });
+    }
+}
