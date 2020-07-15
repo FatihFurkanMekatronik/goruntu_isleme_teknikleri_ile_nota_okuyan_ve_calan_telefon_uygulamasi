@@ -19,132 +19,23 @@ import org.opencv.android.Utils;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
+import org.opencv.core.MatOfPoint;
 import org.opencv.core.Point;
+import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 
 import java.io.IOException;
+import java.lang.reflect.Array;
+import java.util.ArrayList;
+import java.util.Hashtable;
+import java.util.List;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity<nota> extends AppCompatActivity {
 
     private ImageView image;
     private Button pickButton;
-    Mat p1;
-    Mat p2;
-    private static final int PICimage=1;
-    Bitmap res1,bitmap3;
-    //int bp1,bp2;
-    int sayac,k=1;
-    Uri imageUri;
-    Mat originalImag,rgbImg,res;
-
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if(requestCode == PICimage && resultCode == RESULT_OK) {
-            imageUri = data.getData();
-            Bitmap bitmap = null;
-            try {
-                bitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-
-            //Bitmap bitmap = BitmapFactory.decodeResource(getResources(), R.drawable.symphony);
-            Bitmap bitmap2 = BitmapFactory.decodeResource(getResources(), R.drawable.nota6);
-            Mat notaMat = new Mat();
-            Mat tekMat = new Mat();
-            Mat threshold = new Mat();
-            Utils.bitmapToMat(bitmap2,tekMat);
-            Utils.bitmapToMat(bitmap,notaMat);
-            Mat notaMatGray = new Mat();
-            Mat tekMatGray = new Mat();
-            Imgproc.cvtColor(notaMat, notaMatGray, Imgproc.COLOR_RGB2GRAY);
-            Imgproc.cvtColor(tekMat, tekMatGray, Imgproc.COLOR_RGB2GRAY);
-            Imgproc.threshold(notaMatGray,threshold,170,255,Imgproc.THRESH_BINARY);
-
-            int noktaDizisi[] = new int[1000];
-            int satırDizisi[] = new int[60], satırSayac = 0;
-            double[] toplam= {0};
-            for(int i=0;i<threshold.rows();i++)
-            {
-                toplam[0]=0;
-                for(int j=0;j<threshold.cols();j++)
-                {
-                    double[] satırToplam = threshold.get(i,j);
-                    toplam[0] += satırToplam[0];
-                }
-                double a = toplam[0]/threshold.cols();
-                if(a < 130)
-                {
-                    noktaDizisi[k]= i;
-                    if(noktaDizisi[k]-noktaDizisi[k-1] >2)
-                    {
-                        satırDizisi[satırSayac] = i;
-                        satırSayac++;
-                    }
-                    k++;
-                }
-            }
-            int size_row = satırDizisi[2]-satırDizisi[1]+2;
-            int size_col = 542/size_row ;
-            Size sz = new Size(size_row,471/size_col);
-            Imgproc.resize( tekMatGray, tekMatGray, sz );
-
-            for(int b=0 ; b<satırSayac ; b++)
-            {
-
-                Point start = new Point(0, satırDizisi[b]);
-                Point end = new Point( threshold.cols(),satırDizisi[b]);
-                Imgproc.line(threshold, start, end, new Scalar(0, 0, 0), 1);
-            }
-
-            sayac = 0;
-
-            Point[] line = new Point[10];
-
-
-            Core.MinMaxLocResult mmr ;
-
-            int result_cols = notaMatGray.cols() - tekMatGray.cols() + 1;
-            int result_rows = satırDizisi[3];//notaMatGray.rows() - tekMatGray.rows() + 1
-            Mat result = new Mat(result_rows, result_cols, CvType.CV_32FC1);
-
-            Imgproc.matchTemplate(threshold, tekMatGray, result, Imgproc.TM_CCOEFF);
-            Imgproc.cvtColor(threshold,notaMatGray,Imgproc.COLOR_GRAY2BGR);
-            Core.normalize(result, result, 0, 1, Core.NORM_MINMAX, -1, new Mat());
-            Point matchLoc;
-
-
-            boolean iterate = true;
-            while(true)
-            {
-                mmr = Core.minMaxLoc(result);
-                matchLoc = mmr.maxLoc;
-                if(mmr.maxVal >=0.85)
-                {
-                    Imgproc.rectangle(notaMatGray, matchLoc,
-                            new Point(matchLoc.x + tekMatGray.cols(),matchLoc.y + tekMatGray.rows()),
-                            new    Scalar(255,0,0),1);
-                    Imgproc.rectangle(result, matchLoc,
-                            new Point(matchLoc.x + tekMatGray.cols(),matchLoc.y + tekMatGray.rows()),
-                            new    Scalar(0,0,255),-1);
-                    //matchLoc.x = matchLoc.x+5;
-                    //break;
-                }
-                else
-                {
-                    break; //No more results within tolerance, break search
-                }
-            }
-
-            Utils.matToBitmap(notaMatGray,bitmap) ;
-            image.setImageBitmap(bitmap);
-        }
-    }
-
 
     @SuppressLint("ResourceType")
     @Override
@@ -167,5 +58,290 @@ public class MainActivity extends AppCompatActivity {
                 startActivityForResult(Intent.createChooser(gallery,"select picture"),PICimage);
             }
         });
+    }
+
+
+    private static final int PICimage=1;
+    int sayac,k=1,f=0;
+    Uri imageUri;
+    Mat notaMatGray;
+    String[] nota;
+
+
+
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if(requestCode == PICimage && resultCode == RESULT_OK) {
+            imageUri = data.getData();
+            Bitmap bitmap = null;
+            try {
+                bitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri); //Galeriden resim alınır.
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            Bitmap bitmap3 = BitmapFactory.decodeResource(getResources(), R.drawable.solanahtar);//Programda hazır olarak yüklenen görüntüler çekilir.
+            Bitmap bitmap2 = BitmapFactory.decodeResource(getResources(), R.drawable.notop);
+
+            notaMatGray = new Mat();// Mat tipinde değişkenler oluşturulur.
+            Mat tekMatGray = new Mat();
+            Mat solMatGray = new Mat();
+            Mat notaMat = new Mat();
+            Mat tekMat = new Mat();
+            Mat solMat = new Mat();
+            Mat threshold = new Mat();
+
+            Utils.bitmapToMat(bitmap2,tekMat);// Görüntülerin işlenebilmesi için türleri bitmap'tan Mat'a dönüştürülür.
+            Utils.bitmapToMat(bitmap,notaMat);
+            Utils.bitmapToMat(bitmap3,solMat);
+
+
+
+            Imgproc.cvtColor(notaMat, notaMatGray, Imgproc.COLOR_RGB2GRAY);// Görüntüler RGB formatından GRAY formatına dönüştürülür.
+            Imgproc.cvtColor(tekMat, tekMatGray, Imgproc.COLOR_RGB2GRAY);
+            Imgproc.cvtColor(solMat,solMatGray,Imgproc.COLOR_RGB2GRAY);
+            Imgproc.threshold(notaMatGray,threshold,170,255,Imgproc.THRESH_BINARY); // Okunacak notanın görüntüsü ikili görüntüye çevrilir.
+
+
+
+
+            int noktaDizisi[] = new int[1000]; // Siyah rengin yoğunlukta olduğu satırları tutması için oluşturulan dizi
+            int satırDizisi[] = new int[60], satırSayac = 0; // Ayrı her bir satırın bilgisini tutması için oluşturulan dizi
+            double[] toplam= {0};
+            nota = new String[]{"A5", "G5", "F5", "E5", "D5", "C5", "B4", "A4", "G4", "F4", "E4", "D4", "C4"};
+
+
+
+            for(int i=0;i<threshold.rows();i++)// i satır değeri
+            {
+                toplam[0]=0;
+                for(int j=0;j<threshold.cols();j++) // j sütun değeri
+                {
+                    double[] satırToplam = threshold.get(i,j); // threshold görüntüsünün i,j koordinatlarındaki piksel yoğunluğu alınır.
+                    toplam[0] += satırToplam[0]; // Satırdaki tüm piksellerin yoğunluk değerleri toğlanır.
+                }
+                double a = toplam[0]/threshold.cols(); // Satırdaki piksel yoğunluklarının ortalama değeri hesaplanır.
+                if(a < 130) // Satırdaki siyah pikseller satırın %50 sinden fazlasını oluşturuyorsa burada bir satır çizgisi var demektir.
+                {
+                    noktaDizisi[k]= i; // Satır çizgisinin satır koordinatı noktaDizisi'ne atılır.
+                    if(noktaDizisi[k]-noktaDizisi[k-1] >2)
+                    {
+                        satırDizisi[satırSayac] = i; // Görüntüdeki birbirinden ayrı satırlar satırDizisi'ne atılır.
+                        satırSayac++;
+                    }
+                    k++;
+                }
+            }
+            int str_kalınlık = 0;
+            for(int l=1; l < noktaDizisi.length;l++)
+            {
+                if(noktaDizisi[l]-noktaDizisi[l-1] > 2)
+                {
+                    str_kalınlık = noktaDizisi[l] - noktaDizisi[1] +1 ;
+                    break;
+                }
+            }
+
+
+            //int str_kalınlık = satırDizisi[0]-noktaDizisi[1]+1;// Görüntüdeki satırların kalınlıklarını hesaplar.
+            int nota_size_row = satırDizisi[1]-satırDizisi[0]; //Görüntüdeki iki satır arası mesafeyi hesaplar ve eşleştirilecek görüntünün boyu için referans oluşturur.
+            int nota_size_col = (tekMat.cols()*nota_size_row)/tekMat.rows(); //Eşleştirlecek görüntünün hesaplanan boyunu ve görüntünün bilgilerini kullanarak ,bu görüntünün eni için referans oluşturur.
+            Size sz = new Size((nota_size_col)*1.5,nota_size_row*1.3);// Yeni boyutların bilgisi.
+            int sol_size_row = (nota_size_row*557)/78;
+            int sol_size_col = (solMatGray.cols()*sol_size_row)/solMatGray.rows();
+            Size sol_size = new Size(sol_size_col,sol_size_row);
+
+
+            int p = (nota_size_row)/2;
+
+            Imgproc.resize( tekMatGray, tekMatGray, sz );// Eşleştirilecek kaliteli görüntüler yeniden boyutlandırılır.
+            Imgproc.resize(solMatGray,solMatGray,sol_size);
+            //Imgproc.threshold(tekMatGray,tekMatGray,170,255,Imgproc.THRESH_BINARY); // Yeniden boyutlandırılan görüntü ikili görüntüye çevirilir.
+            /*
+            for(int b=0 ; b<satırSayac ; b++) // Satır çizgilerini çizen döngü.
+            {
+
+                Point start = new Point(0, satırDizisi[b]);
+                Point end = new Point( threshold.cols(),satırDizisi[b]);
+                Imgproc.line(threshold, start, end, new Scalar(0, 0, 0), 1);
+            }
+
+             */
+            /*
+            for(int b=0 ; b<k ; b++) // Satır çizgilerini çizen döngü.
+            {
+
+                Point start = new Point(0, noktaDizisi[b]);
+                Point end = new Point( threshold.cols(),noktaDizisi[b]);
+                Imgproc.line(threshold, start, end, new Scalar(255, 255, 255), 1);
+            }
+
+             */
+            Mat element = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new  Size(3, 3));
+            Mat element2 = Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, new  Size(3, 3));
+            //Imgproc.erode(threshold,threshold,element);
+            Imgproc.dilate(threshold,threshold,element);
+            //Imgproc.dilate(threshold,threshold,element2);
+            Imgproc.erode(threshold,threshold,element2);
+            //List<MatOfPoint> cnts = new ArrayList<MatOfPoint>();
+            //Imgproc.findContours(threshold,cnts,threshold Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+
+
+
+
+
+            sayac = 0;
+
+            Imgproc.cvtColor(notaMatGray,notaMatGray,Imgproc.COLOR_GRAY2RGB);
+
+            MatchFuncParams matchFuncParams = new MatchFuncParams(); // Eşleşme işleminde kullanılacak deişkenlere değerleri atanır.
+            matchFuncParams.img = threshold; // Galeriden alınan görüntü
+            matchFuncParams.templ = solMatGray; // Eşleştirilecek görüntü
+            matchFuncParams.roi_x = 0; // Galeriden alınan  görüntünün eşleşme yapılacak bölgesinin bilgileri.
+            matchFuncParams.roi_y = 0;
+            matchFuncParams.roi_w = threshold.cols();
+            matchFuncParams.roi_h = threshold.rows();
+            matchFuncParams.yuzde = 0.9;                                                                                                               ; // Yapılan eşleştirme işleminde görüntünün benzerlik oranı.
+            Point[] sol = matchFunction(matchFuncParams);
+            Imgproc.rectangle(notaMatGray,new Point(sol[0].x+matchFuncParams.roi_x,sol[0].y+matchFuncParams.roi_y),
+                    new Point(sol[0].x+ matchFuncParams.roi_x + matchFuncParams.templ.cols(),sol[0].y+ matchFuncParams.roi_y + matchFuncParams.templ.rows()),
+                    new    Scalar(255,0,0),1);
+
+
+
+            int k= satırDizisi[0]-3*p-str_kalınlık;
+            matchFuncParams.img = threshold;
+            matchFuncParams.templ = tekMatGray;
+            matchFuncParams.roi_x = (int) (sol[0].x + solMatGray.size().width);
+            matchFuncParams.roi_y =k;
+            matchFuncParams.roi_w = threshold.cols()-matchFuncParams.roi_x;
+            matchFuncParams.roi_h = threshold.rows()-k;
+            matchFuncParams.yuzde = 0.8;
+            Point[] notaPoint = matchFunction(matchFuncParams);
+            //ArrayList<Point> ilkDizi = new ArrayList<>();
+
+            //Hashtable<String, Point[] > ilkDizi = new Hashtable<>();
+            /*
+            for(int i=0;i<12;i++)
+            {
+                matchFuncParams.img = threshold;
+                matchFuncParams.templ = tekMatGray;
+                matchFuncParams.roi_x = (int) (sol[0].x + solMatGray.size().width);
+                matchFuncParams.roi_y =k;
+                matchFuncParams.roi_w = threshold.cols()-matchFuncParams.roi_x;
+                matchFuncParams.roi_h = tekMatGray.rows();
+                matchFuncParams.yuzde = 0.95;
+                Point[] notaPoint = matchFunction(matchFuncParams);
+                ilkDizi.put(nota[i],notaPoint);
+               // k = k+p;
+            }
+
+             */
+            Point sıralıDizi  ;
+            for(int say = 0 ; say < f ; say ++)
+            {
+                for(int c = 0; c < f-1 ; c++)
+                {
+                    if (notaPoint[c].x > notaPoint[c + 1].x) {
+                    sıralıDizi = notaPoint[c];
+                    notaPoint[c] = notaPoint[c + 1];
+                    notaPoint[c + 1] = sıralıDizi;
+                }
+            }
+            }
+            Point[] safDizi = new Point[100];
+            int cayas=0;
+            for(int sa=0;sa<f-1;sa++)
+            {
+                if(notaPoint[sa+1].x - notaPoint[sa].x> 1)
+                {
+                    safDizi[cayas] =  notaPoint[sa];
+                    cayas++;
+                }
+                if(sa == f-2)
+                {
+                    safDizi[cayas] = notaPoint[sa];
+                    cayas++;
+                }
+                
+            }
+            for(int say = 0 ; say < cayas ; say ++)
+            {
+                for(int c = 0; c < cayas-1 ; c++)
+                {
+                    if (safDizi[c].y > safDizi[c + 1].y) {
+                        sıralıDizi = safDizi[c];
+                        safDizi[c] = safDizi[c + 1];
+                        safDizi[c + 1] = sıralıDizi;
+
+                    }
+                }
+            }
+            for(int furkan=0; furkan < cayas ; furkan++)
+            {
+                Imgproc.rectangle(notaMatGray,new Point(safDizi[furkan].x+matchFuncParams.roi_x,safDizi[furkan].y+matchFuncParams.roi_y),
+                        new Point(safDizi[furkan].x+ matchFuncParams.roi_x + matchFuncParams.templ.cols(),safDizi[furkan].y+ matchFuncParams.roi_y + matchFuncParams.templ.rows()),
+                        new    Scalar(255,0,0),1);
+            }
+
+
+
+            Utils.matToBitmap(notaMatGray,bitmap) ; // Üzerine işlem yapılmış Gray görüntümüz bitmap tipine dönüştürülür.
+            image.setImageBitmap(bitmap); // Dönüştürülen görüntü imageView de gösterilir.
+        }
+    }
+
+    /*private void rectangle(Mat image,Point match) {
+        Imgproc.rectangle(image, match,
+                new Point(match.x + templatex + template.cols(), match.y + matchFuncParams.roi_y + template.rows()),
+                new Scalar(255, 0, 0), 1);
+    }*/
+
+    private Point[] matchFunction(MatchFuncParams matchFuncParams) {
+        Core.MinMaxLocResult mmr ;
+        Rect roi = new Rect(); // Eşleştirme yapılacak bölge oluşturulur.
+        roi.x = matchFuncParams.roi_x;
+        roi.y = matchFuncParams.roi_y;
+        roi.width = matchFuncParams.roi_w;
+        roi.height = matchFuncParams.roi_h;
+        int result_cols = matchFuncParams.roi_w - matchFuncParams.templ.cols()+1;
+        int result_rows = matchFuncParams.roi_h - matchFuncParams.templ.rows()+2;
+        Mat result = new Mat(result_rows, result_cols, CvType.CV_32FC1); // Eşleşme sonuçlarının tutulacağı bir Mat tipinde değişken tanımlanır.
+
+
+        Mat subimage = matchFuncParams.img.submat(roi); // img değişkeninde tutulan görüntünün eşleştirme yapılacak bölgesi alınır.
+        Imgproc.matchTemplate(subimage, matchFuncParams.templ, result, Imgproc.TM_CCOEFF); // Eşleştirme işlemi yapılır.
+        //Imgproc.cvtColor(matchFuncParams.img,matchFuncParams.img,Imgproc.COLOR_GRAY2BGR);
+        Core.normalize(result, result, 0, 1, Core.NORM_MINMAX, -1, new Mat());
+        Point matchLoc;
+        Point notaDizisi[] = new Point[1000]; // Eşleşen görüntülerin koordinatlarını tutması için oluşturulan değişken.
+        f=0;
+        boolean iterate = true;
+        while(true)
+        {
+            mmr = Core.minMaxLoc(result);
+            matchLoc = mmr.maxLoc;
+
+            if(mmr.maxVal >= matchFuncParams.yuzde)
+            {
+                notaDizisi[f]=matchLoc; // Belirlenen eşleşme oranının üzerinde olan eşleşmeler notaDizisi'ne atılır.
+                /*Imgproc.rectangle(notaMatGray,new Point(matchLoc.x+matchFuncParams.roi_x,matchLoc.y+matchFuncParams.roi_y),
+                        new Point(matchLoc.x+ matchFuncParams.roi_x + matchFuncParams.templ.cols(),matchLoc.y+ matchFuncParams.roi_y + matchFuncParams.templ.rows()),
+                        new    Scalar(255,0,0),1); // Eşleşme kaydedilen bölgeler dikdörtgen içine alınır.
+
+                 */
+                Imgproc.rectangle(result, matchLoc,
+                        new Point(matchLoc.x + matchFuncParams.templ.cols(),matchLoc.y + matchFuncParams.templ.rows()),
+                        new    Scalar(0,0,255),0);
+                f++;
+            }
+            else
+            {
+                break; //No more results within tolerance, break search
+            }
+        }
+        return notaDizisi; // Eşleşmelerin tutulduğu dizi dönderilir.
     }
 }
